@@ -9,7 +9,7 @@
     "relationshipStatus": "Married",
     "childrenStatus": "No children",
     "openingStatement": "For the last few months I've been having these crampy stomach pains and trouble with my bowel movements.",
-    "chiefComplaintSummary": "Intermittent crampy abdominal pain with constipation",
+    "chiefComplaintSummary": "Constipation",
     "currentSymptomStatus": "Not in acute pain right now",
     "affectDescription": "Mildly worried, slightly tense",
     "mannerisms": [
@@ -103,7 +103,7 @@
     "relationshipStatus": "Single",
     "childrenStatus": "None",
     "openingStatement": "I get these pounding headaches with light bothering me.",
-    "chiefComplaintSummary": "Recurrent unilateral pulsating headaches",
+    "chiefComplaintSummary": "Migraine",
     "currentSymptomStatus": "Headache mild today (2/10) as she took ibuprofen early",
     "affectDescription": "Slightly anxious, earnest",
     "mannerisms": [
@@ -189,7 +189,7 @@
     "relationshipStatus": "In long-term relationship",
     "childrenStatus": "Two children (ages 12 and 9)",
     "openingStatement": "I've had this cough that won't quit and a fever.",
-    "chiefComplaintSummary": "Subacute productive cough with systemic symptoms",
+    "chiefComplaintSummary": "Pneumonia",
     "currentSymptomStatus": "Still coughing; fever improved after acetaminophen",
     "affectDescription": "Impatient, straightforward",
     "mannerisms": [

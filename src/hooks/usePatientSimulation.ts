@@ -1,7 +1,7 @@
 // hooks/usePatientSimulation.ts
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   loadRandomPatientProfile,
   getAllPatientProfiles,
@@ -23,140 +23,200 @@ interface GradingResult {
   improvements: string[];
   missedConcepts: string[];
   hallucinatedConcepts: string[];
-  raw?: any; // optional debug payload
+  raw?: any;
+}
+
+export interface StructuredWriteup {
+  ageGender: string;
+  chiefComplaint: string;
+  hpi: string;
+  pmh: string;
+  immunizations: string;
+  pastSurgical: string;
+  medications: string;
+  medicationAllergies: string;
+  familyHistory: string;
+  socialHistory: string;
+  sexualHistory: string;
+  ros: string;
+}
+
+const emptyWriteup: StructuredWriteup = {
+  ageGender: "",
+  chiefComplaint: "",
+  hpi: "",
+  pmh: "",
+  immunizations: "",
+  pastSurgical: "",
+  medications: "",
+  medicationAllergies: "",
+  familyHistory: "",
+  socialHistory: "",
+  sexualHistory: "",
+  ros: "",
+};
+
+function structuredWriteupToMarkdown(w: StructuredWriteup) {
+  const lines: string[] = [];
+  const add = (label: string, v: string) => {
+    if (v.trim()) lines.push(`**${label}:** ${v.trim()}`);
+  };
+  add("Age/Gender", w.ageGender);
+  add("Chief Complaint", w.chiefComplaint);
+  add("History of Present Illness", w.hpi);
+  add("Past Medical History", w.pmh);
+  add("Immunizations", w.immunizations);
+  add("Past Surgical History", w.pastSurgical);
+  add("Medications", w.medications);
+  add("Medication Allergies", w.medicationAllergies);
+  add("Family History", w.familyHistory);
+  add("Social History", w.socialHistory);
+  add("Sexual History", w.sexualHistory);
+  add("Review of Systems", w.ros);
+  return lines.join("\n\n");
 }
 
 export function usePatientSimulation(options: UsePatientSimulationOptions = {}) {
   const [patient, setPatient] = useState<PatientProfile | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>([]);
   const [chapterIndex, setChapterIndex] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const [writeupModalOpen, setWriteupModalOpen] = useState(false);
   const [encounterLocked, setEncounterLocked] = useState(false);
 
-  const [writeup, setWriteup] = useState<string | null>(null);
+  const [structuredWriteup, setStructuredWriteup] =
+    useState<StructuredWriteup | null>(null);
+  const [writeupMarkdown, setWriteupMarkdown] = useState<string | null>(null);
+
   const [gradingLoading, setGradingLoading] = useState(false);
   const [gradingResult, setGradingResult] = useState<GradingResult | null>(null);
   const [gradingError, setGradingError] = useState<string | null>(null);
 
-  // INITIAL PATIENT LOAD
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // ---- Initial load ----
   useEffect(() => {
     let profile: PatientProfile | null = null;
     if (options.initialPatientId) {
       profile =
-        getAllPatientProfiles().find((p) => p.id === options.initialPatientId) ||
+        getAllPatientProfiles().find(p => p.id === options.initialPatientId) ||
         null;
     }
     if (!profile) profile = loadRandomPatientProfile();
-    setPatient(profile);
-    if (profile) {
-      setMessages([
-        createMessage("assistant", profile.openingStatement || "Hi doctor."),
-      ]);
-      setChapterIndex(0);
-      setEncounterLocked(false);
-      setWriteup(null);
-      setGradingResult(null);
-      setGradingError(null);
-    }
+    resetProfile(profile);
   }, [options.initialPatientId]);
 
-  // LOAD NEW RANDOM PATIENT
+  const resetProfile = useCallback((profile: PatientProfile) => {
+    setPatient(profile);
+    setMessages([
+      createMessage("assistant", profile.openingStatement || "Hi doctor."),
+    ]);
+    setChapterIndex(0);
+    setEncounterLocked(false);
+    setStructuredWriteup(null);
+    setWriteupMarkdown(null);
+    setGradingResult(null);
+    setGradingError(null);
+  }, []);
+
+  // ---- Patient switching ----
   const newRandomPatient = useCallback(() => {
-    const profile = loadRandomPatientProfile();
-    setPatient(profile);
-    setMessages([
-      createMessage("assistant", profile.openingStatement || "Hi doctor."),
-    ]);
-    setChapterIndex(0);
-    setEncounterLocked(false);
-    setWriteup(null);
-    setGradingResult(null);
-    setGradingError(null);
-  }, []);
+    if (encounterLocked) return;
+    resetProfile(loadRandomPatientProfile());
+  }, [encounterLocked, resetProfile]);
 
-  // SELECT SPECIFIC PATIENT
-  const selectPatient = useCallback((id: string) => {
-    const profile = getAllPatientProfiles().find((p) => p.id === id);
-    if (!profile) return;
-    setPatient(profile);
-    setMessages([
-      createMessage("assistant", profile.openingStatement || "Hi doctor."),
-    ]);
-    setChapterIndex(0);
-    setEncounterLocked(false);
-    setWriteup(null);
-    setGradingResult(null);
-    setGradingError(null);
-  }, []);
+  const selectPatient = useCallback(
+    (id: string) => {
+      if (encounterLocked) return;
+      const profile = getAllPatientProfiles().find(p => p.id === id);
+      if (profile) resetProfile(profile);
+    },
+    [encounterLocked, resetProfile]
+  );
 
-  // SEND USER MESSAGE (if not locked)
+  // ---- Sending user messages ----
   const sendUserMessage = useCallback(
     async (text: string) => {
-      if (!patient) return;
-      if (!text.trim()) return;
-      if (encounterLocked) return;
+      if (!patient || encounterLocked) return;
+      const trimmed = text.trim();
+      if (!trimmed) return;
 
-      const userMsg = createMessage("user", text.trim());
-      setMessages((prev) => [...prev, userMsg]);
+      const userMsg = createMessage("user", trimmed);
+      setMessages(prev => [...prev, userMsg]);
       setLoading(true);
       try {
+        const transcript = [...messagesRef.current, userMsg];
         const { reply, nextChapterIndex } = await generatePatientResponse(
-          [...messages, userMsg],
+          transcript,
           patient,
           chapterIndex
         );
-        const assistantMsg = createMessage("assistant", reply);
-        setMessages((prev) => [...prev, assistantMsg]);
+        setMessages(prev => [...prev, createMessage("assistant", reply)]);
         setChapterIndex(nextChapterIndex);
-      } catch (e) {
-        const fallback = createMessage(
-          "assistant",
-          "Sorry, something went wrong. Could we try that again?"
-        );
-        setMessages((prev) => [...prev, fallback]);
+      } catch {
+        setMessages(prev => [
+          ...prev,
+          createMessage(
+            "assistant",
+            "Sorry, something went wrong. Could we try that again?"
+          ),
+        ]);
       } finally {
         setLoading(false);
       }
     },
-    [patient, messages, chapterIndex, encounterLocked]
+    [patient, encounterLocked, chapterIndex]
   );
 
+  // ---- Submit structured write-up ----
+  /**
+   * Accepts the raw concatenated markdown OR (recommended) the already structured
+   * object from the modal. We'll modify modal to pass an object.
+   */
   const submitWriteup = useCallback(
-    async (writeupText: string) => {
+    async (markdownOrStructured: string | StructuredWriteup) => {
       if (!patient || encounterLocked) return;
-      setWriteup(writeupText);
+
+      let structured: StructuredWriteup;
+      if (typeof markdownOrStructured === "string") {
+        // backwards compatibility if you keep a plain markdown
+        structured = { ...emptyWriteup, hpi: markdownOrStructured };
+      } else {
+        structured = markdownOrStructured;
+      }
+
+      const markdown = structuredWriteupToMarkdown(structured);
+
+      setStructuredWriteup(structured);
+      setWriteupMarkdown(markdown);
       setEncounterLocked(true);
       setGradingLoading(true);
       setGradingError(null);
 
-      try {
-        // 1. Add the write-up as an assistant "Write-Up Submitted" message
-        const writeupMsg = createMessage(
-          "assistant",
-          `**Learner Write-Up Submitted**\n\n${writeupText}`
-        );
-        setMessages(prev => [...prev, writeupMsg]);
+      // snapshot transcript (conversation only)
+      const transcriptSnapshot = messagesRef.current.map(m => ({
+        role: m.role,
+        content: m.content,
+      }));
 
-        // 2. Call grading endpoint
+      try {
         const res = await fetch("/api/grade", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            writeup: writeupText,
-            transcript: messages.map(m => ({ role: m.role, content: m.content })),
+            writeup: markdown,
+            transcript: transcriptSnapshot,
             patientProfile: patient,
-            finalChapterIndex: chapterIndex
-          })
+            finalChapterIndex: chapterIndex,
+          }),
         });
-
-        if (!res.ok) {
-          throw new Error(`Grading API error: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Grading API error: ${res.status}`);
 
         const { grading } = await res.json();
-
         const result: GradingResult = {
           conversationScore: grading.conversationScore ?? 0,
           writeupScore: grading.writeupCoverageScore ?? 0,
@@ -165,53 +225,16 @@ export function usePatientSimulation(options: UsePatientSimulationOptions = {}) 
           improvements: grading.improvements || [],
           missedConcepts: grading.missedElements || [],
           hallucinatedConcepts: grading.hallucinations || [],
-          raw: grading
+          raw: grading,
         };
-
         setGradingResult(result);
-
-        // 3. Add feedback as assistant message
-        const feedbackLines: string[] = [];
-        feedbackLines.push(`**Feedback Summary**`);
-        feedbackLines.push(
-          `Scores — Conversation: ${result.conversationScore}/100 | Write-Up: ${result.writeupScore}/100 | Overall: ${result.overallScore}/100`
-        );
-        if (result.strengths.length) {
-          feedbackLines.push(
-            `**Strengths:** ${result.strengths.map(s => `• ${s}`).join(" ")}`
-          );
-        }
-        if (result.improvements.length) {
-          feedbackLines.push(
-            `**Improvements:** ${result.improvements.map(i => `• ${i}`).join(" ")}`
-          );
-        }
-        if (result.missedConcepts.length) {
-          feedbackLines.push(
-            `**Missed Elements:** ${result.missedConcepts.join(", ")}`
-          );
-        }
-        if (result.hallucinatedConcepts.length) {
-          feedbackLines.push(
-            `**Unsubstantiated / Hallucinated:** ${result.hallucinatedConcepts.join(", ")}`
-          );
-        }
-
-        const feedbackMsg = createMessage("assistant", feedbackLines.join("\n\n"));
-        setMessages(prev => [...prev, feedbackMsg]);
-
       } catch (err: any) {
         setGradingError(err?.message || "Grading failed.");
-        const errorMsg = createMessage(
-          "assistant",
-          "⚠️ Grading failed. Please retry later."
-        );
-        setMessages(prev => [...prev, errorMsg]);
       } finally {
         setGradingLoading(false);
       }
     },
-    [patient, encounterLocked, messages, chapterIndex]
+    [patient, encounterLocked, chapterIndex]
   );
 
   const allProfiles = getAllPatientProfiles();
@@ -242,7 +265,8 @@ export function usePatientSimulation(options: UsePatientSimulationOptions = {}) 
     writeupModalOpen,
     setWriteupModalOpen,
     encounterLocked,
-    writeup,
+    structuredWriteup,
+    writeupMarkdown,
     gradingLoading,
     gradingResult,
     gradingError,
@@ -251,6 +275,7 @@ export function usePatientSimulation(options: UsePatientSimulationOptions = {}) 
       newRandomPatient,
       selectPatient,
       submitWriteup,
+      setEncounterLocked, // if needed externally
     },
   };
 }

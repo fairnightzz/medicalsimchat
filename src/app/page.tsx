@@ -5,12 +5,16 @@ import { usePatientSimulation } from "@/hooks/usePatientSimulation";
 export default function HomePage() {
   const {
     patientSummary,
-    patient,
     allProfiles,
     messages,
     loading,
     writeupModalOpen,
     setWriteupModalOpen,
+    encounterLocked,
+    structuredWriteup,
+    gradingResult,
+    gradingLoading,
+    gradingError,
     actions: {
       sendUserMessage,
       newRandomPatient,
@@ -19,7 +23,6 @@ export default function HomePage() {
     },
   } = usePatientSimulation();
 
-  // Provide labels for profile selector
   const profileOptions = allProfiles.map(p => ({
     id: p.id,
     label: p.chiefComplaintSummary || p.name,
@@ -27,12 +30,24 @@ export default function HomePage() {
 
   return (
     <ChatInterface
+      /* transcript */
       messages={messages}
       patientSummary={patientSummary}
       profiles={profileOptions}
       loading={loading}
+
+      /* modal control */
       writeupModalOpen={writeupModalOpen}
       setWriteupModalOpen={setWriteupModalOpen}
+
+      /* encounter state / artifacts */
+      encounterLocked={encounterLocked}
+      structuredWriteup={structuredWriteup}
+      gradingResult={gradingResult}
+      gradingLoading={gradingLoading}
+      gradingError={gradingError}
+
+      /* actions */
       onSendMessage={sendUserMessage}
       onNewPatient={newRandomPatient}
       onSelectPatient={selectPatient}

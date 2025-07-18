@@ -1,6 +1,6 @@
 // components/ChatInterface.tsx
 "use client";
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Menu, User, RefreshCw, X } from "lucide-react";
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { StructuredWriteup } from "@/hooks/usePatientSimulation";
 
 interface UIMessages {
   role: "user" | "assistant";
@@ -33,18 +34,49 @@ interface PatientSummary {
   chaptersRevealed: number;
 }
 
+interface GradingResult {
+  conversationScore: number;
+  writeupScore: number;
+  overallScore: number;
+  strengths: string[];
+  improvements: string[];
+  missedConcepts: string[];
+  hallucinatedConcepts: string[];
+  raw?: any;
+}
+
 interface ChatInterfaceProps {
   messages: UIMessages[];
   patientSummary: PatientSummary | null;
   profiles: { id: string; label: string }[];
   loading: boolean;
   writeupModalOpen: boolean;
+  encounterLocked: boolean;
+  structuredWriteup: StructuredWriteup | null;
+  gradingResult: GradingResult | null;
+  gradingLoading: boolean;
+  gradingError: string | null;
   onSendMessage: (text: string) => Promise<void> | void;
   onNewPatient: () => void;
   onSelectPatient: (id: string) => void;
-  onSubmitWriteup: (writeup: string) => void;
+  onSubmitWriteup: (w: StructuredWriteup) => void;
   setWriteupModalOpen: (open: boolean) => void;
 }
+
+const labelMap: Record<keyof StructuredWriteup, string> = {
+  ageGender: "Age/Gender",
+  chiefComplaint: "Chief Complaint",
+  hpi: "History of Present Illness",
+  pmh: "Past Medical History",
+  immunizations: "Immunizations",
+  pastSurgical: "Past Surgical History",
+  medications: "Medications",
+  medicationAllergies: "Medication Allergies",
+  familyHistory: "Family History",
+  socialHistory: "Social History",
+  sexualHistory: "Sexual History",
+  ros: "Review of Systems",
+};
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
@@ -52,6 +84,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   profiles,
   loading,
   writeupModalOpen,
+  encounterLocked,
+  structuredWriteup,
+  gradingResult,
+  gradingLoading,
+  gradingError,
   onSendMessage,
   onNewPatient,
   onSelectPatient,
@@ -60,13 +97,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState("");
   const [sideMenuOpen, setSideMenuOpen] = useState(true);
-  const [encounterLocked, setEncounterLocked] = useState(false); // lock after write-up submit
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedProfileId = patientSummary?.id;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, structuredWriteup, gradingResult]);
+
+  const writeupSections = useMemo(() => {
+    if (!structuredWriteup) return [];
+    return (Object.keys(structuredWriteup) as (keyof StructuredWriteup)[])
+      .filter(k => structuredWriteup[k]?.trim())
+      .map(k => ({
+        key: k,
+        label: labelMap[k],
+        value: structuredWriteup[k],
+      }));
+  }, [structuredWriteup]);
 
   if (!patientSummary) {
     return (
@@ -81,13 +128,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     const text = inputValue.trim();
     setInputValue("");
     await onSendMessage(text);
-  };
-
-  const handleWriteupSubmit = (writeup: string) => {
-    // Lock further interaction
-    setEncounterLocked(true);
-    setWriteupModalOpen(false);
-    onSubmitWriteup(writeup);
   };
 
   const openWriteup = () => {
@@ -136,7 +176,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <Select
                   value={selectedProfileId}
                   onValueChange={(val) => {
-                    if (encounterLocked) return; // prevent switching after lock
+                    if (encounterLocked) return;
                     onSelectPatient(val);
                   }}
                   disabled={encounterLocked}
@@ -199,7 +239,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 )}
                 {encounterLocked && (
                   <div className="text-xs text-amber-400 pt-2">
-                    Encounter locked (write‑up submitted).
+                    Encounter locked.
                   </div>
                 )}
               </div>
@@ -208,8 +248,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </div>
       </div>
 
-      {/* Main Chat */}
-      <div className="flex-1 flex flex-col">
+      {/* Main Column */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
         <header className="border-b border-gray-700 px-6 py-4 flex items-center justify-between bg-gray-800">
           <div>
             <h1 className="text-xl font-semibold">
@@ -217,8 +258,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </h1>
             <p className="text-sm text-gray-400">
               {encounterLocked
-                ? "Encounter closed — read-only transcript."
-                : "Interview the patient, then submit your write‑up."}
+                ? "Encounter closed — transcript + results below."
+                : "Interview the patient, then submit your structured write‑up."}
             </p>
           </div>
           <Button
@@ -231,8 +272,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </Button>
         </header>
 
+        {/* Unified scroll area (messages + results) */}
         <div className="flex-1 overflow-y-auto px-6">
-          <div className="max-w-3xl mx-auto py-6 space-y-6">
+          <div className="max-w-4xl mx-auto py-6 space-y-6">
+            {/* Messages */}
             {messages.map((m, i) => (
               <div
                 key={i}
@@ -257,6 +300,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 </div>
               </div>
             ))}
+
             {loading && !encounterLocked && (
               <div className="flex justify-start">
                 <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gray-700 text-gray-100 mr-12">
@@ -268,13 +312,34 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Results inserted at end of transcript */}
+            {encounterLocked && (
+              <>
+                {messages.length > 0 && (
+                  <div className="h-px bg-gray-700/60 my-2" />
+                )}
+                <div className="grid gap-8 md:grid-cols-2">
+                  <WriteupCard
+                    writeup={structuredWriteup}
+                    loading={gradingLoading}
+                  />
+                  <FeedbackCard
+                    gradingResult={gradingResult}
+                    gradingError={gradingError}
+                    loading={gradingLoading}
+                  />
+                </div>
+              </>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
         </div>
 
         {/* Composer */}
         <div className="border-t border-gray-700 px-6 py-4 bg-gray-800">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             <div className="flex gap-3">
               <div className="flex-1 relative">
                 <Input
@@ -296,9 +361,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 />
                 <Button
                   onClick={handleSend}
-                  disabled={
-                    loading || encounterLocked || !inputValue.trim()
-                  }
+                  disabled={loading || encounterLocked || !inputValue.trim()}
                   size="icon"
                   className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-60"
                 >
@@ -331,10 +394,160 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       <WriteupModal
         isOpen={writeupModalOpen}
         onClose={() => setWriteupModalOpen(false)}
-        onSubmit={handleWriteupSubmit}
+        onSubmit={(structured) => {
+          setWriteupModalOpen(false);
+          onSubmitWriteup(structured);
+        }}
       />
     </div>
   );
 };
 
 export default ChatInterface;
+
+/* ----- Result Cards ----- */
+
+function WriteupCard({
+  writeup,
+  loading,
+}: {
+  writeup: StructuredWriteup | null;
+  loading: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-gray-800/70 border border-gray-700 p-6 backdrop-blur-sm">
+      <h2 className="text-lg font-semibold mb-4">Submitted Write‑Up</h2>
+      {!writeup && !loading && (
+        <p className="text-sm text-gray-400">
+          No write‑up captured (submission failed?).
+        </p>
+      )}
+      {loading && <p className="text-sm text-gray-400">Scoring…</p>}
+      {writeup && !loading && (
+        <dl className="space-y-4">
+          {(Object.keys(writeup) as (keyof StructuredWriteup)[])
+            .filter(k => writeup[k].trim())
+            .map(k => (
+              <div key={k}>
+                <dt className="text-xs uppercase tracking-wide text-gray-400">
+                  {labelMap[k]}
+                </dt>
+                <dd className="text-sm text-gray-100 whitespace-pre-wrap mt-1">
+                  {writeup[k]}
+                </dd>
+              </div>
+            ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+function FeedbackCard({
+  gradingResult,
+  gradingError,
+  loading,
+}: {
+  gradingResult: GradingResult | null;
+  gradingError: string | null;
+  loading: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-gray-800/70 border border-gray-700 p-6 backdrop-blur-sm">
+      <h2 className="text-lg font-semibold mb-4">Automated Feedback</h2>
+      {loading && <p className="text-sm text-gray-400">Analyzing write‑up…</p>}
+      {gradingError && !loading && (
+        <p className="text-sm text-red-400">{gradingError}</p>
+      )}
+      {!gradingError && gradingResult && !loading && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <ScorePill
+              label="Conversation"
+              value={gradingResult.conversationScore}
+            />
+            <ScorePill label="Write‑Up" value={gradingResult.writeupScore} />
+            <ScorePill label="Overall" value={gradingResult.overallScore} />
+          </div>
+
+          <ListSection
+            title="Strengths"
+            items={gradingResult.strengths}
+            emptyText="—"
+          />
+          <ListSection
+            title="Improvements"
+            items={gradingResult.improvements}
+            emptyText="—"
+          />
+          <ListSection
+            title="Missed Elements"
+            items={gradingResult.missedConcepts}
+            pill
+            emptyText="None"
+          />
+          <ListSection
+            title="Unsubstantiated / Hallucinated"
+            items={gradingResult.hallucinatedConcepts}
+            pill
+            emptyText="None"
+          />
+        </div>
+      )}
+      {!gradingResult && !gradingError && !loading && (
+        <p className="text-sm text-gray-400">No feedback yet.</p>
+      )}
+    </div>
+  );
+}
+
+function ScorePill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-lg bg-gray-700/60 px-3 py-3">
+      <span className="text-[10px] uppercase tracking-wide text-gray-400">
+        {label}
+      </span>
+      <span className="text-lg font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
+function ListSection({
+  title,
+  items,
+  emptyText,
+  pill,
+}: {
+  title: string;
+  items: string[];
+  emptyText?: string;
+  pill?: boolean;
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold mb-2">{title}</h3>
+      {items.length === 0 && (
+        <div className="text-xs text-gray-500">{emptyText || "None"}</div>
+      )}
+      {items.length > 0 && !pill && (
+        <ul className="list-disc ml-5 space-y-1 text-sm text-gray-200">
+          {items.map((i, idx) => (
+            <li key={idx}>{i}</li>
+          ))}
+        </ul>
+      )}
+      {items.length > 0 && pill && (
+        <div className="flex flex-wrap gap-2">
+          {items.map((i, idx) => (
+            <span
+              key={idx}
+              className="text-xs px-2 py-1 rounded-md bg-gray-700 border border-gray-600 text-gray-200"
+            >
+              {i}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
