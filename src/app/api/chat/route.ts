@@ -1,33 +1,44 @@
+// app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PatientProfile } from "@/lib/patientSimulator";
+import { PatientProfile } from "@/types/patient";
+import { buildPatientSystemPrompt, isOpenEnded } from "@/lib/buildPatientSystemPrompt";
 
-export async function POST(request: NextRequest) {
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface IncomingBody {
+  messages: ChatMessage[];
+  patientProfile: PatientProfile;
+  chapterIndex?: number; // how many chapters have already been disclosed
+}
+
+export async function POST(req: NextRequest) {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
   if (!OPENAI_API_KEY) {
     return NextResponse.json(
       { error: "OpenAI API key not configured" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 
   try {
-    const { messages, patientProfile } = await request.json();
+    const { messages, patientProfile, chapterIndex = 0 } =
+      (await req.json()) as IncomingBody;
 
-    // Create a system prompt that defines the patient's character
-    const systemPrompt = `You are a patient with the following medical condition and characteristics:
+    // Determine if last user prompt is open-ended (for potential chapter advancement)
+    const lastUser = [...messages].reverse().find(m => m.role === "user");
+    const openEnded = lastUser ? isOpenEnded(lastUser.content) : false;
 
-Condition: ${patientProfile.condition}
-Symptoms: ${patientProfile.symptoms.join(", ")}
-Medical History: ${patientProfile.medicalHistory}
-Personality Traits: ${patientProfile.personalityTraits.join(", ")}
-Age: ${patientProfile.demographicInfo.age}
-Gender: ${patientProfile.demographicInfo.gender}
-Occupation: ${patientProfile.demographicInfo.occupation || "Not specified"}
+    // Build system prompt with current chapter index (chapters already revealed)
+    const systemPrompt = buildPatientSystemPrompt(patientProfile, chapterIndex);
 
-You are speaking with a doctor. Respond as this patient would, incorporating your personality traits and symptoms. Be realistic - patients don't always give complete information immediately, may be vague about symptoms, and their personality affects how they communicate. Don't reveal your exact diagnosis directly. Keep responses conversational and natural, as a real patient would speak.`;
+    // Control instruction advising whether to reveal next chapter
+    const control = openEnded
+      ? "The last learner message appears open-ended. You MAY reveal exactly ONE next unrevealed narrative chapter (if any remain)."
+      : "The last learner message appears closed/specific. Do NOT reveal a new narrative chapter; answer only what was asked.";
 
-    // Make the API call to OpenAI
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -35,41 +46,49 @@ You are speaking with a doctor. Respond as this patient would, incorporating you
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4",
+        model: "gpt-4o-mini",
         messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          ...messages,
+          { role: "system", content: systemPrompt },
+          // Provide a brief runtime control message:
+          { role: "system", content: control },
+          ...messages
         ],
-        max_tokens: 150,
+        max_tokens: 220,
         temperature: 0.8,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1,
+        presence_penalty: 0.2,
+        frequency_penalty: 0.2,
       }),
     });
 
     if (!response.ok) {
       throw new Error(
-        `OpenAI API error: ${response.status} ${response.statusText}`,
+        `OpenAI API error: ${response.status} ${response.statusText}`
       );
     }
 
     const data = await response.json();
+    const content: string | undefined =
+      data.choices?.[0]?.message?.content?.trim();
 
-    if (data.choices && data.choices.length > 0) {
-      return NextResponse.json({
-        response: data.choices[0].message.content.trim(),
-      });
-    } else {
-      throw new Error("No response generated from OpenAI API");
-    }
-  } catch (error) {
-    console.error("Error generating patient response:", error);
+    if (!content) throw new Error("No response content from model.");
+
+    // Decide next chapter index (increment only if open-ended AND a chapter remains)
+    const total = patientProfile.narrativeChapters.length;
+    const newChapterIndex =
+      openEnded && chapterIndex < total
+        ? chapterIndex + 1
+        : chapterIndex;
+
+    return NextResponse.json({
+      response: content,
+      openEnded,
+      nextChapterIndex: newChapterIndex,
+    });
+  } catch (err) {
+    console.error("Error in /api/chat:", err);
     return NextResponse.json(
       { error: "Failed to generate patient response" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

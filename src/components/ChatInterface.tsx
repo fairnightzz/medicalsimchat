@@ -1,12 +1,10 @@
+// components/ChatInterface.tsx
 "use client";
-
-import React, { useState, useRef, useEffect } from "react";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Card, CardContent } from "../components/ui/card";
+import React, { useRef, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Send, Menu, User, RefreshCw, X } from "lucide-react";
-import ConversationHistory from "./ConversationHistory";
-import DiagnosisModal from "./DiagnosisModal";
+import WriteupModal from "./WriteupModal";
 import {
   Select,
   SelectContent,
@@ -15,207 +13,93 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Message {
+interface UIMessages {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
 }
 
-interface PatientProfile {
+interface PatientSummary {
   id: string;
-  condition: string;
-  symptoms: string[];
-  personality: string;
-  history: string;
-  explanation: string;
+  name: string;
+  age: number;
+  gender?: string;
+  openingStatement: string;
+  chiefComplaintSummary: string;
+  currentSymptomStatus?: string;
+  affect?: string;
+  mannerisms: string[];
+  chaptersTotal: number;
+  chaptersRevealed: number;
 }
 
 interface ChatInterfaceProps {
-  onSendMessage?: (message: string) => Promise<string>;
-  patientProfile?: PatientProfile;
-  onNewPatient?: () => void;
-  onSelectPatient?: (patientId: string) => void;
+  messages: UIMessages[];
+  patientSummary: PatientSummary | null;
+  profiles: { id: string; label: string }[];
+  loading: boolean;
+  writeupModalOpen: boolean;
+  onSendMessage: (text: string) => Promise<void> | void;
+  onNewPatient: () => void;
+  onSelectPatient: (id: string) => void;
+  onSubmitWriteup: (writeup: string) => void;
+  setWriteupModalOpen: (open: boolean) => void;
 }
 
-const ChatInterface = ({
-  onSendMessage = async (message) => {
-    // Default mock response if no handler is provided
-    return "I'm not feeling well today. Can you help me, doctor?";
-  },
-  patientProfile = {
-    id: "default",
-    condition: "Common Cold",
-    symptoms: ["Runny nose", "Sore throat", "Mild fever", "Cough"],
-    personality: "Slightly anxious but cooperative",
-    history: "Has been feeling unwell for 3 days",
-    explanation:
-      "The common cold is a viral infection of the upper respiratory tract.",
-  },
+const ChatInterface: React.FC<ChatInterfaceProps> = ({
+  messages,
+  patientSummary,
+  profiles,
+  loading,
+  writeupModalOpen,
+  onSendMessage,
   onNewPatient,
   onSelectPatient,
-}: ChatInterfaceProps) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Hello doctor, I'm not feeling well today. Can you help me?",
-      timestamp: new Date(),
-    },
-  ]);
+  onSubmitWriteup,
+  setWriteupModalOpen,
+}) => {
   const [inputValue, setInputValue] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDiagnosisModalOpen, setIsDiagnosisModalOpen] = useState(false);
   const [sideMenuOpen, setSideMenuOpen] = useState(true);
-  const [selectedProfileId, setSelectedProfileId] = useState(patientProfile.id);
+  const [encounterLocked, setEncounterLocked] = useState(false); // lock after write-up submit
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedProfileId = patientSummary?.id;
 
-  // Import patient profiles from the simulator
-  const { getAllPatientProfiles } = require("@/lib/patientSimulator");
-  const mockPatientProfiles = getAllPatientProfiles().map((profile) => ({
-    id: profile.id,
-    condition: profile.condition,
-    symptoms: profile.symptoms,
-    personalityTraits: profile.personalityTraits,
-    history: profile.medicalHistory,
-  }));
-
-  // Use the patient profile passed from parent, or fall back to default
-  const currentProfile = {
-    id: patientProfile.id,
-    condition: patientProfile.condition,
-    symptoms: patientProfile.symptoms,
-    personalityTraits:
-      typeof patientProfile.personality === "string"
-        ? patientProfile.personality.split(", ")
-        : [patientProfile.personality],
-    history: patientProfile.history,
-  };
-
-  // Update selected profile ID when patient profile changes
   useEffect(() => {
-    setSelectedProfileId(patientProfile.id);
-  }, [patientProfile.id]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
-  // Scroll to bottom of messages when new messages are added
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
-
-  const handleSendMessage = async () => {
-    if (inputValue.trim() === "") return;
-
-    const userMessage: Message = {
-      role: "user",
-      content: inputValue,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
-    setIsLoading(true);
-
-    try {
-      // Send message to AI and get response
-      console.log("trying to send message");
-      const response = await onSendMessage(inputValue);
-
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: response,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error("Error getting response:", error);
-
-      // Add error message
-      const errorMessage: Message = {
-        role: "assistant",
-        content:
-          "I'm sorry LOL, I'm not feeling well enough to respond right now. Can we try again?",
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  const handleSubmitDiagnosis = (diagnosis: string, notes: string) => {
-    // Import evaluation functions from the simulator
-    const {
-      evaluateDiagnosis,
-      formatDiagnosisResult,
-    } = require("@/lib/patientSimulator");
-
-    // Close the modal after submission
-    setIsDiagnosisModalOpen(false);
-
-    // Add the diagnosis to the chat as a user message
-    const diagnosisMessage: Message = {
-      role: "user",
-      content: `My diagnosis: ${diagnosis}\n${notes ? `Notes: ${notes}` : ""}`,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, diagnosisMessage]);
-
-    // Evaluate the diagnosis using the simulator function
-    const isCorrect = evaluateDiagnosis(diagnosis, patientProfile.condition);
-
-    // Format the result using the simulator function
-    const resultContent = formatDiagnosisResult(
-      diagnosis,
-      patientProfile.condition,
-      patientProfile.explanation,
-      isCorrect,
+  if (!patientSummary) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-300">
+        Loading patient...
+      </div>
     );
+  }
 
-    const systemResponse: Message = {
-      role: "assistant",
-      content: resultContent,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, systemResponse]);
+  const handleSend = async () => {
+    if (!inputValue.trim() || loading || encounterLocked) return;
+    const text = inputValue.trim();
+    setInputValue("");
+    await onSendMessage(text);
   };
 
-  const handleNewPatient = () => {
-    // Reset the chat messages
-    setMessages([
-      {
-        role: "assistant",
-        content: "Hello doctor, I'm not feeling well today. Can you help me?",
-        timestamp: new Date(),
-      },
-    ]);
+  const handleWriteupSubmit = (writeup: string) => {
+    // Lock further interaction
+    setEncounterLocked(true);
+    setWriteupModalOpen(false);
+    onSubmitWriteup(writeup);
+  };
 
-    // Clear input
-    setInputValue("");
-
-    // Call the parent's new patient handler if provided
-    if (onNewPatient) {
-      onNewPatient();
-    }
+  const openWriteup = () => {
+    if (!encounterLocked) setWriteupModalOpen(true);
   };
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
       {/* Side Menu */}
       <div
-        className={`h-full bg-gray-800 transform transition-all duration-300 ease-in-out flex-shrink-0 border-r border-gray-700 ${
-          sideMenuOpen ? "w-80" : "w-16"
-        } overflow-hidden`}
+        className={`h-full bg-gray-800 transform transition-all duration-300 ease-in-out flex-shrink-0 border-r border-gray-700 ${sideMenuOpen ? "w-80" : "w-16"
+          } overflow-hidden`}
       >
         <div className={`${sideMenuOpen ? "w-80" : "w-16"} h-full`}>
           <div className="flex items-center justify-between p-6">
@@ -223,7 +107,7 @@ const ChatInterface = ({
               <>
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <User className="h-5 w-5" />
-                  Patient Profile
+                  Patient
                 </h2>
                 <Button
                   variant="ghost"
@@ -247,38 +131,23 @@ const ChatInterface = ({
           </div>
 
           {sideMenuOpen && (
-            <div className="p-4 space-y-4">
-              <div className="flex items-center gap-2 mb-4">
+            <div className="p-4 space-y-5">
+              <div className="flex items-center gap-2">
                 <Select
                   value={selectedProfileId}
-                  onValueChange={(value) => {
-                    setSelectedProfileId(value);
-                    // Reset the chat messages when selecting a new patient
-                    setMessages([
-                      {
-                        role: "assistant",
-                        content:
-                          "Hello doctor, I'm not feeling well today. Can you help me?",
-                        timestamp: new Date(),
-                      },
-                    ]);
-                    // Clear input
-                    setInputValue("");
-                    if (onSelectPatient) {
-                      onSelectPatient(value);
-                    }
+                  onValueChange={(val) => {
+                    if (encounterLocked) return; // prevent switching after lock
+                    onSelectPatient(val);
                   }}
+                  disabled={encounterLocked}
                 >
-                  <SelectTrigger className="flex-1 bg-gray-700 border-gray-600">
-                    <SelectValue placeholder="Select patient profile" />
+                  <SelectTrigger className="flex-1 bg-gray-700 border-gray-600 disabled:opacity-50">
+                    <SelectValue placeholder="Select patient" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockPatientProfiles.map((profile) => (
-                      <SelectItem
-                        key={profile.id}
-                        value={profile.id.toString()}
-                      >
-                        {profile.condition}
+                    {profiles.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -286,160 +155,183 @@ const ChatInterface = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleNewPatient}
-                  className="flex items-center gap-2 bg-gray-700 border-gray-600 hover:bg-gray-600"
+                  onClick={() => {
+                    if (encounterLocked) return;
+                    onNewPatient();
+                  }}
+                  className="flex items-center gap-1 bg-gray-700 border-gray-600 hover:bg-gray-600 disabled:opacity-50"
+                  disabled={encounterLocked}
                 >
                   <RefreshCw className="h-4 w-4" />
                   New
                 </Button>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-semibold text-lg mb-2 text-white">
-                    {currentProfile.condition}
-                  </h3>
-                  <p className="text-sm text-gray-300 mb-4">
-                    {currentProfile.history}
-                  </p>
+              <div className="text-sm space-y-2">
+                <div className="font-semibold">
+                  {patientSummary.name}, {patientSummary.age}
+                  {patientSummary.gender && ` • ${patientSummary.gender}`}
                 </div>
-
-                <div>
-                  <h4 className="font-medium mb-2 text-white">Symptoms:</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {currentProfile.symptoms.map((symptom, index) => (
-                      <li key={index} className="text-gray-300">
-                        {symptom}
-                      </li>
-                    ))}
-                  </ul>
+                <div className="italic text-gray-300">
+                  "{patientSummary.openingStatement}"
                 </div>
-
-                <div>
-                  <h4 className="font-medium mb-2 text-white">
-                    Personality Traits:
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {currentProfile.personalityTraits.map((trait, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-1 bg-gray-700 rounded-md text-xs text-gray-200"
-                      >
-                        {trait}
-                      </span>
-                    ))}
+                <div className="text-gray-400">
+                  CC: {patientSummary.chiefComplaintSummary}
+                </div>
+                {patientSummary.currentSymptomStatus && (
+                  <div className="text-gray-400">
+                    Status: {patientSummary.currentSymptomStatus}
                   </div>
+                )}
+                <div className="text-gray-400">
+                  Chapters: {patientSummary.chaptersRevealed}/
+                  {patientSummary.chaptersTotal}
                 </div>
-
-                <div className="pt-4">
-                  <p className="text-xs text-gray-400">
-                    Patient ID: {currentProfile.id}
-                  </p>
-                </div>
+                {patientSummary.affect && (
+                  <div className="text-gray-400">
+                    Affect: {patientSummary.affect}
+                  </div>
+                )}
+                {!!patientSummary.mannerisms.length && (
+                  <div className="text-gray-400">
+                    Mannerisms: {patientSummary.mannerisms.join(", ")}
+                  </div>
+                )}
+                {encounterLocked && (
+                  <div className="text-xs text-amber-400 pt-2">
+                    Encounter locked (write‑up submitted).
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col transition-all duration-300 ease-in-out">
+      {/* Main Chat */}
+      <div className="flex-1 flex flex-col">
         <header className="border-b border-gray-700 px-6 py-4 flex items-center justify-between bg-gray-800">
           <div>
-            <h1 className="text-xl font-semibold text-white">
-              Medical Diagnosis Simulator
+            <h1 className="text-xl font-semibold">
+              Clinical Interview Simulator
             </h1>
             <p className="text-sm text-gray-400">
-              Practice your diagnostic skills with simulated patients
+              {encounterLocked
+                ? "Encounter closed — read-only transcript."
+                : "Interview the patient, then submit your write‑up."}
             </p>
           </div>
+          <Button
+            variant="outline"
+            className="border-gray-600 bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-50"
+            onClick={openWriteup}
+            disabled={encounterLocked}
+          >
+            {encounterLocked ? "Write‑Up Submitted" : "Submit Write‑Up"}
+          </Button>
         </header>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6">
-            <div className="max-w-3xl mx-auto py-6 space-y-6">
-              {messages.map((message, index) => (
+        <div className="flex-1 overflow-y-auto px-6">
+          <div className="max-w-3xl mx-auto py-6 space-y-6">
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
+                  }`}
+              >
                 <div
-                  key={index}
-                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                      message.role === "user"
-                        ? "bg-blue-600 text-white ml-12"
-                        : "bg-gray-700 text-gray-100 mr-12"
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 ${m.role === "user"
+                      ? "bg-blue-600 text-white ml-12"
+                      : "bg-gray-700 text-gray-100 mr-12"
                     }`}
-                  >
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                      {message.content}
-                    </p>
-                    <span className="text-xs opacity-70 mt-2 block">
-                      {new Date(message.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
+                >
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {m.content}
+                  </p>
+                  <span className="text-xs opacity-70 mt-2 block">
+                    {new Date(m.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
                 </div>
-              ))}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gray-700 text-gray-100 mr-12">
-                    <p className="flex items-center gap-1">
-                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current"></span>
-                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current delay-150"></span>
-                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current delay-300"></span>
-                    </p>
-                  </div>
+              </div>
+            ))}
+            {loading && !encounterLocked && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gray-700 text-gray-100 mr-12">
+                  <p className="flex items-center gap-1">
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current"></span>
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current delay-150"></span>
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current delay-300"></span>
+                  </p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
+        </div>
 
-          <div className="border-t border-gray-700 px-6 py-4 bg-gray-800">
-            <div className="max-w-3xl mx-auto">
-              <div className="flex gap-3">
-                <div className="flex-1 relative">
-                  <Input
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Message the patient..."
-                    disabled={isLoading}
-                    className="pr-12 bg-gray-700 border-gray-600 text-white placeholder-gray-400 rounded-xl h-12 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={isLoading || inputValue.trim() === ""}
-                    size="icon"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
+        {/* Composer */}
+        <div className="border-t border-gray-700 px-6 py-4 bg-gray-800">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex gap-3">
+              <div className="flex-1 relative">
+                <Input
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder={
+                    encounterLocked
+                      ? "Encounter locked after write‑up."
+                      : "Ask or respond..."
+                  }
+                  disabled={loading || encounterLocked}
+                  className="pr-12 bg-gray-700 border-gray-600 text-white placeholder-gray-500 rounded-xl h-12 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+                />
                 <Button
-                  onClick={() => setIsDiagnosisModalOpen(true)}
-                  variant="outline"
-                  className="h-12 px-6 rounded-xl border-gray-600 bg-gray-700 text-white hover:bg-gray-600"
+                  onClick={handleSend}
+                  disabled={
+                    loading || encounterLocked || !inputValue.trim()
+                  }
+                  size="icon"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-60"
                 >
-                  Submit Diagnosis
+                  <Send className="h-4 w-4" />
                 </Button>
               </div>
-              {isLoading && (
-                <div className="text-sm text-gray-400 mt-3 text-center">
-                  Patient is thinking...
-                </div>
-              )}
+              <Button
+                onClick={openWriteup}
+                variant="outline"
+                className="h-12 px-6 rounded-xl border-gray-600 bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-50"
+                disabled={encounterLocked}
+              >
+                {encounterLocked ? "Locked" : "Write‑Up"}
+              </Button>
             </div>
+            {loading && !encounterLocked && (
+              <div className="text-sm text-gray-400 mt-3 text-center">
+                Patient is thinking...
+              </div>
+            )}
+            {encounterLocked && (
+              <div className="text-xs text-center text-amber-400 mt-3">
+                Encounter closed — further messaging disabled.
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <DiagnosisModal
-        isOpen={isDiagnosisModalOpen}
-        onClose={() => setIsDiagnosisModalOpen(false)}
-        onSubmit={handleSubmitDiagnosis}
+      <WriteupModal
+        isOpen={writeupModalOpen}
+        onClose={() => setWriteupModalOpen(false)}
+        onSubmit={handleWriteupSubmit}
       />
     </div>
   );

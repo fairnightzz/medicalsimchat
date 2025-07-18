@@ -1,0 +1,265 @@
+[
+  {
+    "id": "constipation-001",
+    "name": "Jai Hynes",
+    "age": 50,
+    "gender": "female",
+    "occupation": "Hotel manager",
+    "livingSituation": "Lives with spouse",
+    "relationshipStatus": "Married",
+    "childrenStatus": "No children",
+    "openingStatement": "For the last few months I've been having these crampy stomach pains and trouble with my bowel movements.",
+    "chiefComplaintSummary": "Intermittent crampy abdominal pain with constipation",
+    "currentSymptomStatus": "Not in acute pain right now",
+    "affectDescription": "Mildly worried, slightly tense",
+    "mannerisms": [
+      "Fidgets with hands",
+      "Occasional sigh"
+    ],
+    "disclosureNotes": "May initially downplay severity until rapport built.",
+    "narrativeChapters": [
+      "Crampy lower abdominal pain most mornings over several months; feels bloated and uncomfortable until a bowel movement.",
+      "Stools have become harder and less frequent; sometimes needs to strain; had one milder similar spell a year ago that resolved.",
+      "Thinks stress at work and some tension with spouse may be making things worse; worried something could be wrong internally."
+    ],
+    "hpi": {
+      "duration": "Several months, gradually more frequent",
+      "timingPattern": "Worse in mornings before first bowel movement",
+      "location": "Lower abdomen, diffuse crampiness",
+      "radiation": "No radiation",
+      "quality": "Crampy, pressure-like",
+      "severity": "Peaks around 7/10 during worst cramps",
+      "worseFactors": "Waiting before passing stool, stress",
+      "betterFactors": "Bowel movement gives partial relief",
+      "associatedPositives": "Bloating, hard stools, reduced frequency",
+      "associatedNegatives": [
+        "No vomiting",
+        "No blood in stool",
+        "No weight loss",
+        "No fevers",
+        "No urinary symptoms"
+      ],
+      "progression": "Getting a bit more frequent over last month",
+      "functionalImpact": "Slows morning routine; sometimes late to work",
+      "ice": "Worries about something serious in the gut but also suspects stress"
+    },
+    "bowelSymptomBank": "Passes stool every 2–3 days; Bristol type 1–2 recently; no black or bloody stool.",
+    "pmh": {
+      "conditions": [
+        "Mild right knee osteoarthritis"
+      ],
+      "surgeries": [
+        "Tonsillectomy (childhood)"
+      ],
+      "medications": [],
+      "otcSupplements": [
+        "Multivitamin",
+        "Occasional ibuprofen for knee"
+      ],
+      "allergies": [
+        "No known drug allergies"
+      ],
+      "immunizations": "Up to date except unsure about last influenza shot"
+    },
+    "social": {
+      "tobacco": "Never smoker",
+      "alcohol": "1–2 drinks on weekends",
+      "drugs": "Denies illicit drug use",
+      "diet": "Generally balanced but low fiber lately",
+      "exercise": "Minimal regular exercise",
+      "occupation": "Hotel manager",
+      "stressors": [
+        "Work stress",
+        "Marital tension"
+      ]
+    },
+    "familyHistory": [
+      "Father hypertension",
+      "Brother hypertension"
+    ],
+    "sexual": {
+      "partners": "Monogamous with spouse",
+      "orientation": "Heterosexual",
+      "activity": "Not very active recently",
+      "stiProtection": "Not using protection with spouse",
+      "contraception": "Post-menopausal"
+    },
+    "rosPositive": [
+      "Intermittent right knee pain"
+    ],
+    "rosNegatives": [
+      "No night sweats",
+      "No persistent fevers"
+    ],
+    "maxChaptersToReveal": 3
+  },
+  {
+    "id": "migraine-002",
+    "name": "Elena Park",
+    "age": 34,
+    "gender": "female",
+    "occupation": "Software developer",
+    "livingSituation": "Lives alone in apartment",
+    "relationshipStatus": "Single",
+    "childrenStatus": "None",
+    "openingStatement": "I get these pounding headaches with light bothering me.",
+    "chiefComplaintSummary": "Recurrent unilateral pulsating headaches",
+    "currentSymptomStatus": "Headache mild today (2/10) as she took ibuprofen early",
+    "affectDescription": "Slightly anxious, earnest",
+    "mannerisms": [
+      "Shields eyes from bright monitor light",
+      "Speaks precisely"
+    ],
+    "narrativeChapters": [
+      "Headaches started about 5 years ago—one side of head, throbbing, last 6–12 hours if untreated.",
+      "They come 2–3 times a month, accompanied by nausea and light sensitivity; running up stairs or exertion worsens them.",
+      "Notices they’re more frequent near tight work deadlines or if she skips meals; worried they might get worse over time."
+    ],
+    "hpi": {
+      "duration": "≈5 years episodic pattern",
+      "timingPattern": "2–3 episodes/month, often afternoon",
+      "location": "Right temporal region (sometimes switches sides)",
+      "radiation": "Rarely radiates, stays mostly lateral",
+      "quality": "Throbbing/pulsating",
+      "severity": "Peaks 8/10 untreated",
+      "worseFactors": "Physical activity, bright light, skipping meals",
+      "betterFactors": "Dark quiet room, NSAIDs if early, sleep",
+      "associatedPositives": "Photophobia, phonophobia, mild nausea, occasional blurry shimmering aura for 10 minutes",
+      "associatedNegatives": [
+        "No weakness",
+        "No speech difficulty",
+        "No fever",
+        "No neck stiffness"
+      ],
+      "progression": "Stable frequency overall, slight increase last 6 months",
+      "functionalImpact": "Must stop coding; misses work hours occasionally",
+      "ice": "Worried about a tumor but hopes for prevention options"
+    },
+    "pmh": {
+      "conditions": [
+        "Migraine"
+      ],
+      "surgeries": [],
+      "medications": [],
+      "otcSupplements": [
+        "Magnesium intermittently"
+      ],
+      "allergies": [
+        "No known drug allergies"
+      ],
+      "immunizations": "Up to date"
+    },
+    "social": {
+      "tobacco": "Never",
+      "alcohol": "1 glass wine/week",
+      "drugs": "Denies",
+      "diet": "Variable meal timing, coffee 2 cups daily",
+      "exercise": "Irregular (light jogging weekly)",
+      "occupation": "Software developer",
+      "stressors": [
+        "Product deadlines",
+        "Sleep inconsistency"
+      ]
+    },
+    "familyHistory": [
+      "Mother migraines"
+    ],
+    "sexual": {
+      "partners": "Not currently sexually active",
+      "orientation": "Heterosexual",
+      "activity": "Inactive",
+      "stiProtection": "N/A currently",
+      "contraception": "None"
+    },
+    "rosPositive": [
+      "Occasional visual aura"
+    ],
+    "rosNegatives": [
+      "No persistent visual loss",
+      "No limb numbness"
+    ]
+  },
+  {
+    "id": "pneumonia-003",
+    "name": "Carlos Mendez",
+    "age": 45,
+    "gender": "male",
+    "occupation": "Construction worker",
+    "livingSituation": "Lives with partner",
+    "relationshipStatus": "In long-term relationship",
+    "childrenStatus": "Two children (ages 12 and 9)",
+    "openingStatement": "I've had this cough that won't quit and a fever.",
+    "chiefComplaintSummary": "Subacute productive cough with systemic symptoms",
+    "currentSymptomStatus": "Still coughing; fever improved after acetaminophen",
+    "affectDescription": "Impatient, straightforward",
+    "mannerisms": [
+      "Clears throat",
+      "Brief cough bursts"
+    ],
+    "narrativeChapters": [
+      "Cough started about a week ago after some cold symptoms; became deeper and more productive with greenish sputum.",
+      "Fever hit 38.5°C two days ago with chills and pleuritic right-sided chest pain when taking deep breaths.",
+      "Short of breath climbing stairs; concerned it might affect work; still smokes and wonders if that made it worse."
+    ],
+    "hpi": {
+      "duration": "7–8 days",
+      "timingPattern": "Persistent, worse at night",
+      "location": "Right lower chest discomfort on deep breath",
+      "radiation": "No true radiation",
+      "quality": "Sharp pleuritic pain with deep inspiration",
+      "severity": "Cough annoyance 6/10; pleuritic pain 5/10",
+      "worseFactors": "Deep breaths, exertion",
+      "betterFactors": "Rest, acetaminophen lowers fever",
+      "associatedPositives": "Fever, chills, productive green sputum, mild dyspnea on exertion",
+      "associatedNegatives": [
+        "No hemoptysis",
+        "No leg swelling",
+        "No recent travel"
+      ],
+      "progression": "Worsened around day 5 with fever",
+      "functionalImpact": "Slower at work, misses partial shifts",
+      "ice": "Wants antibiotics and to avoid missing more work"
+    },
+    "pmh": {
+      "conditions": [
+        "Chronic smoker (~15 pack-years)"
+      ],
+      "surgeries": [],
+      "medications": [],
+      "otcSupplements": [],
+      "allergies": [
+        "No known drug allergies"
+      ],
+      "immunizations": "Unsure about last pneumococcal vaccine"
+    },
+    "social": {
+      "tobacco": "Smokes ~1 pack/day (15 years)",
+      "alcohol": "Weekend beers (4–5)",
+      "drugs": "Denies illicit drugs",
+      "diet": "High convenience/fast food at lunch",
+      "exercise": "Work is physically demanding",
+      "occupation": "Construction worker",
+      "stressors": [
+        "Work deadlines",
+        "Financial concerns if off work"
+      ]
+    },
+    "familyHistory": [
+      "Father COPD"
+    ],
+    "sexual": {
+      "partners": "Monogamous with partner",
+      "orientation": "Heterosexual",
+      "activity": "Active",
+      "stiProtection": "Not using barrier protection",
+      "contraception": "Partner uses IUD"
+    },
+    "rosPositive": [
+      "Night sweats earlier in the week"
+    ],
+    "rosNegatives": [
+      "No weight loss",
+      "No syncope"
+    ]
+  }
+]
