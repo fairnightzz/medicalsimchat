@@ -1,39 +1,52 @@
 // app/api/realtimeSession/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "edge"; // optional
+
 export async function POST(req: NextRequest) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return NextResponse.json({ error: "Missing API key" }, { status: 500 });
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "Missing API key" }, { status: 500 });
+  }
 
   try {
-    const { offer, personaPrompt } = await req.json();
-    if (!offer) return NextResponse.json({ error: "Missing SDP offer" }, { status: 400 });
-
-    const model = "gpt-4o-mini-realtime-preview"; // cheapest realtime model
-    const instructions =
-      personaPrompt || "You are a standardized patient. Stay in role; be concise.";
-
-    const r = await fetch(`https://api.openai.com/v1/realtime?model=${model}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "OpenAI-Beta": "realtime=v1"
-      },
-      body: JSON.stringify({
-        sdp: offer,
-        session: { instructions }
-      })
-    });
-
-    if (!r.ok) {
-      const detail = await r.text();
-      return NextResponse.json({ error: "Realtime init failed", detail }, { status: 502 });
+    const offerSDP = await req.text(); // raw SDP (NOT JSON)
+    if (!offerSDP || !offerSDP.includes("v=0")) {
+      return NextResponse.json({ error: "Invalid or missing SDP offer" }, { status: 400 });
     }
 
-    const json = await r.json();
-    return NextResponse.json({ answer: json.sdp });
+    const model = "gpt-4o-mini-realtime-preview";
+
+    const upstream = await fetch(
+      `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/sdp",
+          "OpenAI-Beta": "realtime=v1",
+          // Do NOT put long patient prompt here.
+          // If you *must* seed something tiny & ASCII you can add:
+          // "OpenAI-Session-Prompt": "You are a standardized patient.",
+        },
+        body: offerSDP,
+      }
+    );
+
+    if (!upstream.ok) {
+      const detail = await upstream.text();
+      return new NextResponse(detail, { status: 502 });
+    }
+
+    const answerSDP = await upstream.text();
+    return new NextResponse(answerSDP, {
+      status: 200,
+      headers: { "Content-Type": "application/sdp" },
+    });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Unexpected error" }, { status: 500 });
+    return NextResponse.json(
+      { error: e.message || "Unexpected error during realtime init" },
+      { status: 500 }
+    );
   }
 }
