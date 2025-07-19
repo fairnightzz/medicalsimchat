@@ -7,7 +7,7 @@ import Composer from "./Composer";
 import WriteupModal from "@/components/modals/WriteupModal";
 import WriteupCard from "./ResultsPanel/WriteupCard";
 import FeedbackCard from "./ResultsPanel/FeedbackCard";
-import type { StructuredWriteup } from "@/hooks/usePatientSimulation";
+import type { StructuredWriteup } from "@/types/grading";
 import type { ChatDisplayMessage } from "@/types/chat";
 
 export interface PatientSummary {

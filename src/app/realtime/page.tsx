@@ -1,223 +1,194 @@
 // app/realtime/page.tsx
 "use client";
 
-import { useRealtimePatient } from "@/hooks/useRealtimePatient";
-import { useRealtimePatientProfiles } from "@/hooks/useRealtimePatientProfiles";
-import { useMemo, useEffect, useRef, useState } from "react";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { User, RefreshCw, X, Menu } from "lucide-react";
+
+import SidePanel from "@/components/chat/SidePanel";
+import WriteupModal from "@/components/modals/WriteupModal";
+import WriteupCard from "@/components/chat/ResultsPanel/WriteupCard";
+import FeedbackCard from "@/components/chat/ResultsPanel/FeedbackCard";
+
+import { useRealtimePatient } from "@/hooks/useRealtimePatient";
+import type { StructuredWriteup } from "@/lib/structuredWriteupToMarkdown";
 
 export default function RealtimePage() {
-  const { patient, allProfiles, actions, chapterIndex } =
-    useRealtimePatientProfiles();
+  const {
+    patient,
+    patientSummary,
+    allProfiles,
+    messages,
+    chapterIndex,
 
-  const rt = useRealtimePatient();
+    starting,
+    connected,
+    error,
+    encounterEnded,
+
+    livePartialUser,
+    livePartialPatient,
+
+    writeupModalOpen,
+    setWriteupModalOpen,
+    encounterLocked,               // alias: true once write-up submitted
+    structuredWriteup,
+    gradingLoading,
+    gradingResult,
+    gradingError,
+
+    actions: {
+      startSession,
+      stopSession,
+      finalizeEncounter,
+      newRandomPatient,
+      selectPatient,
+      submitWriteup
+    }
+  } = useRealtimePatient();
+
+  const [sideOpen, setSideOpen] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
-  const [sideMenuOpen, setSideMenuOpen] = useState(true);
 
-  // Build merged message list
+  // Compose display array (final + partials)
   const displayMessages = useMemo(() => {
-    const out: {
-      role: "user" | "assistant";
-      text: string;
-      ts: number;
-      final: boolean;
-    }[] = [];
-    rt.userTranscript.forEach(t =>
-      out.push({ role: "user", text: t.text, ts: t.timestamp, final: t.final })
-    );
-    rt.patientTranscript.forEach(t =>
-      out.push({
-        role: "assistant",
-        text: t.text,
-        ts: t.timestamp,
-        final: t.final,
-      })
-    );
-    if (rt.livePartialUser)
-      out.push({
-        role: "user",
-        text: rt.livePartialUser,
+    const finals = messages.map(m => ({
+      role: m.role,
+      text: m.content,
+      ts: m.timestamp.getTime(),
+      final: !m.partial
+    }));
+    const partials: typeof finals = [];
+    if (livePartialUser)
+      partials.push({
+        role: "user" as const,
+        text: livePartialUser,
         ts: Date.now(),
-        final: false,
+        final: false
       });
-    if (rt.livePartialPatient)
-      out.push({
-        role: "assistant",
-        text: rt.livePartialPatient,
+    if (livePartialPatient)
+      partials.push({
+        role: "assistant" as const,
+        text: livePartialPatient,
         ts: Date.now(),
-        final: false,
+        final: false
       });
-    return out.sort((a, b) => a.ts - b.ts);
-  }, [
-    rt.userTranscript,
-    rt.patientTranscript,
-    rt.livePartialUser,
-    rt.livePartialPatient,
-  ]);
+    return [...finals, ...partials].sort((a, b) => a.ts - b.ts);
+  }, [messages, livePartialUser, livePartialPatient]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [displayMessages]);
 
-  const start = () => {
-    if (!patient) return;
-    // Pass patient.id and (optionally) chapterIndex
-    rt.startSession(patient, chapterIndex);
+  const disableSwitching = connected || encounterEnded || encounterLocked;
+
+  /* Write-up submission handler */
+  const handleSubmitWriteup = async (w: StructuredWriteup) => {
+    await submitWriteup(w);
+    setWriteupModalOpen(false);
   };
+
+  const profileOptions = useMemo(
+    () =>
+      allProfiles.map(p => ({
+        id: p.id,
+        label: p.chiefComplaintSummary || p.name
+      })),
+    [allProfiles]
+  );
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
-      {/* Side Menu */}
-      <div
-        className={`h-full bg-gray-800 border-r border-gray-700 transition-all duration-300 ${sideMenuOpen ? "w-80" : "w-16"
-          }`}
-      >
-        <div className="flex items-center justify-between p-4">
-          {sideMenuOpen ? (
-            <>
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Patient
-              </h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-400 hover:text-white"
-                onClick={() => setSideMenuOpen(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-gray-400 hover:text-white w-full"
-              onClick={() => setSideMenuOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-          )}
-        </div>
+      <SidePanel
+        open={sideOpen}
+        setOpen={setSideOpen}
+        patientSummary={
+          patientSummary
+            ? {
+              ...patientSummary,
+              affectDescription: patientSummary.affect, // map to sidepanel prop name if needed
+            }
+            : null
+        }
+        profiles={profileOptions}
+        onSelectPatient={selectPatient}
+        onNewPatient={newRandomPatient}
+        disableSwitching={disableSwitching}
+        encounterLocked={encounterLocked || encounterEnded}
+      />
 
-        {sideMenuOpen && patient && (
-          <div className="p-4 space-y-5 text-sm">
-            <div className="flex items-center gap-2">
-              <Select
-                value={patient.id}
-                onValueChange={val => {
-                  if (rt.connected) return; // don't switch mid-call
-                  actions.selectPatient(val);
-                }}
-                disabled={rt.connected}
-              >
-                <SelectTrigger className="flex-1 bg-gray-700 border-gray-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {allProfiles.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.chiefComplaintSummary || p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1 bg-gray-700 border-gray-600 hover:bg-gray-600 disabled:opacity-50"
-                disabled={rt.connected}
-                onClick={() => actions.newRandomPatient()}
-              >
-                <RefreshCw className="h-4 w-4" />
-                New
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <div className="font-semibold">
-                {patient.name}, {patient.age}
-                {patient.gender && ` • ${patient.gender}`}
-              </div>
-              <div className="italic text-gray-300">
-                "{patient.openingStatement}"
-              </div>
-              <div className="text-gray-400">
-                CC: {patient.chiefComplaintSummary}
-              </div>
-              {patient.currentSymptomStatus && (
-                <div className="text-gray-400">
-                  Status: {patient.currentSymptomStatus}
-                </div>
-              )}
-              {patient.affectDescription && (
-                <div className="text-gray-400">
-                  Affect: {patient.affectDescription}
-                </div>
-              )}
-              {!!(patient.mannerisms || []).length && (
-                <div className="text-gray-400">
-                  Mannerisms: {patient.mannerisms!.join(", ")}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Main Column */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
         <header className="border-b border-gray-700 px-6 py-4 flex items-center justify-between bg-gray-800">
           <div>
             <h1 className="text-xl font-semibold">Realtime Voice Encounter</h1>
             <p className="text-sm text-gray-400">
-              {rt.encounterEnded
-                ? "Encounter finalized."
-                : rt.connected
-                  ? "Live — speak with the patient."
-                  : "Select patient and start session."}
+              {encounterLocked
+                ? "Write‑up submitted — results below."
+                : encounterEnded
+                  ? "Encounter finalized — prepare and submit your write‑up."
+                  : connected
+                    ? "Live — speak with the patient."
+                    : "Select a patient and start the session."}
             </p>
+            {chapterIndex > 0 && !encounterEnded && !encounterLocked && (
+              <p className="text-[11px] text-gray-500 mt-1">
+                Narrative chapters advanced: {chapterIndex}
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
-            {!rt.connected && !rt.encounterEnded && (
+            {!connected && !encounterEnded && !encounterLocked && (
               <Button
-                onClick={start}
-                disabled={!patient || rt.starting}
+                onClick={() => startSession(patient || undefined)}
+                disabled={!patientSummary || starting}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                {rt.starting ? "Starting..." : "Start Session"}
+                {starting ? "Starting..." : "Start Session"}
               </Button>
             )}
-            {rt.connected && !rt.encounterEnded && (
+            {connected && !encounterEnded && !encounterLocked && (
               <>
                 <Button
                   variant="outline"
-                  onClick={() => rt.stopSession()}
+                  onClick={() => stopSession()}
                   className="border-gray-600 bg-gray-700"
                 >
                   Stop
                 </Button>
                 <Button
-                  onClick={() => rt.finalizeEncounter()}
+                  onClick={() => finalizeEncounter()}
                   className="bg-amber-600 hover:bg-amber-700"
                 >
                   Finalize
                 </Button>
               </>
             )}
+            {encounterEnded && !encounterLocked && (
+              <Button
+                onClick={() => setWriteupModalOpen(true)}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                Submit Write‑Up
+              </Button>
+            )}
+
+            {/* Submitted (locked) – disabled */}
+            {encounterLocked && (
+              <Button
+                variant="outline"
+                disabled
+                className="border-gray-600 bg-gray-700 cursor-default opacity-70"
+              >
+                Write‑Up Submitted
+              </Button>
+            )}
           </div>
         </header>
 
+        {/* Transcript & Results unified scroll area */}
         <div className="flex-1 overflow-y-auto px-6">
-          <div className="max-w-3xl mx-auto py-6 space-y-6">
+          <div className="max-w-4xl mx-auto py-6 space-y-6">
+            {/* Transcript */}
             {displayMessages.map((m, i) => (
               <div
                 key={i}
@@ -235,22 +206,47 @@ export default function RealtimePage() {
               </div>
             ))}
 
-            {!rt.connected && !rt.starting && (
+            {!connected && !starting && !encounterEnded && !encounterLocked && (
               <div className="text-sm text-gray-500">
                 Press “Start Session” to begin voice encounter.
               </div>
             )}
-            {rt.error && (
-              <div className="text-sm text-red-400">Error: {rt.error}</div>
+
+            {error && (
+              <div className="text-sm text-red-400">Error: {error}</div>
             )}
+
+            {/* Results (after submission) */}
+            {encounterLocked && (
+              <>
+                <div className="h-px bg-gray-700/60 my-4" />
+                <div className="grid gap-8 md:grid-cols-2">
+                  <WriteupCard writeup={structuredWriteup} loading={gradingLoading} />
+                  <FeedbackCard
+                    gradingResult={gradingResult}
+                    gradingError={gradingError}
+                    loading={gradingLoading}
+                  />
+                </div>
+              </>
+            )}
+
             <div ref={endRef} />
           </div>
         </div>
 
         <footer className="border-t border-gray-700 px-6 py-3 text-xs text-gray-500 bg-gray-800">
-          Realtime model configured in <code>/api/realtimeSession</code>
+          Realtime model: configured in <code>/api/realtimeSession</code>
         </footer>
       </div>
+
+      <WriteupModal
+        isOpen={writeupModalOpen}
+        onClose={() => setWriteupModalOpen(false)}
+        onSubmit={handleSubmitWriteup}
+      // Optionally pass initialValue from transcript to prefill (e.g. ageGender/chiefComplaint)
+      // initialValue={deriveInitialWriteup(structuredWriteup, patientSummary)}
+      />
     </div>
   );
 }

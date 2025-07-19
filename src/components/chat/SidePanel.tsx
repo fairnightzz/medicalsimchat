@@ -1,16 +1,50 @@
 "use client";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Menu, User, X, RefreshCw } from "lucide-react";
-import { PatientSummary } from "./ChatInterface";
-import { useState } from "react";
 
-interface Props {
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { Menu, User, X, RefreshCw } from "lucide-react";
+import React from "react";
+
+/**
+ * A minimal patient summary shape that works for BOTH
+ * the text chat and realtime encounter pages.
+ */
+export interface PatientPanelSummary {
+  id: string;
+  name: string;
+  age: number;
+  gender?: string;
+  openingStatement: string;
+  chiefComplaintSummary: string;
+  currentSymptomStatus?: string;
+  affectDescription?: string;           // text version: .affect; realtime: .affectDescription
+  mannerisms?: string[];
+  chaptersRevealed?: number;            // optional (text mode)
+  chaptersTotal?: number;               // optional (text mode)
+}
+
+interface SidePanelProps {
   open: boolean;
   setOpen: (o: boolean) => void;
-  patientSummary: PatientSummary | null;
+
+  patientSummary: PatientPanelSummary | null;
   profiles: { id: string; label: string }[];
-  encounterLocked: boolean;
+
+  /**
+   * When true, patient selection & "New" button are disabled.
+   * (Use for text: encounterLocked; realtime: connected or finalized.)
+   */
+  disableSwitching?: boolean;
+
+  /** Alias retained for backward compatibility (text mode). */
+  encounterLocked?: boolean;
+
   onSelectPatient: (id: string) => void;
   onNewPatient: () => void;
 }
@@ -20,11 +54,13 @@ export default function SidePanel({
   setOpen,
   patientSummary,
   profiles,
-  encounterLocked,
+  disableSwitching = false,
+  encounterLocked = false,
   onSelectPatient,
-  onNewPatient,
-}: Props) {
+  onNewPatient
+}: SidePanelProps) {
   const selectedProfileId = patientSummary?.id;
+
   return (
     <div
       className={`h-full bg-gray-800 transition-all duration-300 border-r border-gray-700 ${open ? "w-80" : "w-16"
@@ -57,22 +93,24 @@ export default function SidePanel({
           </Button>
         )}
       </div>
+
       {open && patientSummary && (
         <div className="p-4 space-y-5 text-sm">
+          {/* Selector Row */}
           <div className="flex items-center gap-2">
             <Select
               value={selectedProfileId}
               onValueChange={(val) => {
-                if (encounterLocked) return;
+                if (disableSwitching) return;
                 onSelectPatient(val);
               }}
-              disabled={encounterLocked}
+              disabled={disableSwitching}
             >
               <SelectTrigger className="flex-1 bg-gray-700 border-gray-600 disabled:opacity-50">
                 <SelectValue placeholder="Select patient" />
               </SelectTrigger>
               <SelectContent>
-                {profiles.map(p => (
+                {profiles.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.label}
                   </SelectItem>
@@ -83,10 +121,10 @@ export default function SidePanel({
               variant="outline"
               size="sm"
               onClick={() => {
-                if (encounterLocked) return;
+                if (disableSwitching) return;
                 onNewPatient();
               }}
-              disabled={encounterLocked}
+              disabled={disableSwitching}
               className="flex items-center gap-1 bg-gray-700 border-gray-600 hover:bg-gray-600 disabled:opacity-50"
             >
               <RefreshCw className="h-4 w-4" />
@@ -94,6 +132,7 @@ export default function SidePanel({
             </Button>
           </div>
 
+          {/* Patient Info */}
           <div className="space-y-2">
             <div className="font-semibold">
               {patientSummary.name}, {patientSummary.age}
@@ -110,22 +149,30 @@ export default function SidePanel({
                 Status: {patientSummary.currentSymptomStatus}
               </div>
             )}
-            <div className="text-gray-400">
-              Chapters: {patientSummary.chaptersRevealed}/{patientSummary.chaptersTotal}
-            </div>
-            {patientSummary.affect && (
+            {/* Chapters only if provided (text mode) */}
+            {typeof patientSummary.chaptersRevealed === "number" &&
+              typeof patientSummary.chaptersTotal === "number" && (
+                <div className="text-gray-400">
+                  Chapters: {patientSummary.chaptersRevealed}/
+                  {patientSummary.chaptersTotal}
+                </div>
+              )}
+            {patientSummary.affectDescription && (
               <div className="text-gray-400">
-                Affect: {patientSummary.affect}
+                Affect: {patientSummary.affectDescription}
               </div>
             )}
-            {!!patientSummary.mannerisms.length && (
+            {!!(patientSummary.mannerisms || []).length && (
               <div className="text-gray-400">
-                Mannerisms: {patientSummary.mannerisms.join(", ")}
+                Mannerisms: {patientSummary.mannerisms!.join(", ")}
               </div>
             )}
-            {encounterLocked && (
+
+            {(encounterLocked || disableSwitching) && (
               <div className="text-xs text-amber-400 pt-2">
-                Encounter locked.
+                {encounterLocked
+                  ? "Encounter locked."
+                  : "Switching disabled while live."}
               </div>
             )}
           </div>
