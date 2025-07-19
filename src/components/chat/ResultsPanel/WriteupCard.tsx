@@ -1,5 +1,5 @@
 "use client";
-import type { StructuredWriteup } from "@/hooks/usePatientSimulation";
+import type { StructuredWriteup } from "@/types/grading";
 import { labelMap } from "../ChatInterface";
 
 export default function WriteupCard({
